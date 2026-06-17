@@ -47,10 +47,19 @@ http://127.0.0.1:5177/
 - CC Switch import links.
 - OpenAI-compatible smoke test through `/v1/chat/completions`.
 - Tauri 2 project shell for desktop packaging.
+- Desktop-only local bundle writer:
+  - writes to `~/.v2api-code-hub/clients/<client>/<profile>/`
+  - writes `profile-bundle.json`
+  - writes generated artifact files
+  - creates a `.bak` backup before replacing an existing bundle
 
 ## Next MVP Steps
 
 - Add v2api login and dedicated API key creation through `new-api` APIs.
-- Add Tauri commands for writing local client config files with backup and rollback.
+- Extend the bundle writer to real Codex, Claude Code, and Gemini CLI config paths.
 - Add tray and auto-update after the first packaged desktop build.
 - Add optional WeChat/QQ bot bridge as a separate process or sibling service.
+
+## Desktop Build Prerequisite
+
+The web MVP builds with Bun. Tauri desktop packaging additionally requires Rust/Cargo.

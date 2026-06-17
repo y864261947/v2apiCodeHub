@@ -18,6 +18,7 @@ export type ClientArtifact = {
   title: string
   language: string
   value: string
+  fileName?: string
 }
 
 export type ClientDefinition = {
@@ -63,4 +64,15 @@ export type V2ApiCatalog = {
   apiKeys: ApiKeySummary[]
   models: string[]
   groups: GroupOption[]
+}
+
+export type DesktopInstallState =
+  | { status: 'idle'; message: string }
+  | { status: 'running'; message: string }
+  | { status: 'success'; message: string; path: string; backupPath?: string }
+  | { status: 'error'; message: string }
+
+export type DesktopInstallResult = {
+  path: string
+  backup_path?: string
 }

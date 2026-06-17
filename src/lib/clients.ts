@@ -45,6 +45,7 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'OpenAI-compatible environment',
         language: 'bash',
+        fileName: 'codex.env',
         value: [
           `OPENAI_API_KEY=${quoted(profile.apiKey.trim())}`,
           `OPENAI_BASE_URL=${quoted(openAiBaseUrl(profile.baseUrl))}`,
@@ -54,11 +55,13 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'CC Switch import',
         language: 'text',
+        fileName: 'codex.cc-switch.txt',
         value: ccSwitchUrl('codex', profile),
       },
       {
         title: 'Smoke test',
         language: 'bash',
+        fileName: 'codex-smoke-test.sh',
         value: smokeCurl(profile),
       },
     ],
@@ -71,6 +74,7 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'Anthropic-compatible environment',
         language: 'bash',
+        fileName: 'claude-code.env',
         value: [
           `ANTHROPIC_AUTH_TOKEN=${quoted(profile.apiKey.trim())}`,
           `ANTHROPIC_BASE_URL=${quoted(normalizeBaseUrl(profile.baseUrl))}`,
@@ -80,11 +84,13 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'CC Switch import',
         language: 'text',
+        fileName: 'claude-code.cc-switch.txt',
         value: ccSwitchUrl('claude', profile),
       },
       {
         title: 'OpenAI smoke test',
         language: 'bash',
+        fileName: 'claude-code-smoke-test.sh',
         value: smokeCurl(profile),
       },
     ],
@@ -97,6 +103,7 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'v2api profile',
         language: 'json',
+        fileName: 'gemini-cli-profile.json',
         value: JSON.stringify(
           {
             provider: 'v2api',
@@ -112,11 +119,13 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'CC Switch import',
         language: 'text',
+        fileName: 'gemini-cli.cc-switch.txt',
         value: ccSwitchUrl('gemini', profile),
       },
       {
         title: 'OpenAI smoke test',
         language: 'bash',
+        fileName: 'gemini-cli-smoke-test.sh',
         value: smokeCurl(profile),
       },
     ],
@@ -129,6 +138,7 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'Client profile',
         language: 'json',
+        fileName: 'openai-compatible-profile.json',
         value: JSON.stringify(
           {
             name: profile.name,
@@ -143,6 +153,7 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'Environment',
         language: 'bash',
+        fileName: 'openai-compatible.env',
         value: [
           `OPENAI_API_KEY=${quoted(profile.apiKey.trim())}`,
           `OPENAI_BASE_URL=${quoted(openAiBaseUrl(profile.baseUrl))}`,
@@ -151,6 +162,7 @@ export const CLIENTS: ClientDefinition[] = [
       {
         title: 'Smoke test',
         language: 'bash',
+        fileName: 'openai-compatible-smoke-test.sh',
         value: smokeCurl(profile),
       },
     ],
@@ -160,4 +172,3 @@ export const CLIENTS: ClientDefinition[] = [
 export function getClientDefinition(id: string): ClientDefinition {
   return CLIENTS.find((client) => client.id === id) ?? CLIENTS[0]
 }
-

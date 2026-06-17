@@ -6,6 +6,7 @@ import {
   Code2,
   Copy,
   Database,
+  FolderDown,
   KeyRound,
   Laptop,
   Loader2,
@@ -25,10 +26,12 @@ import {
   saveProfiles,
 } from './lib/profiles'
 import { fetchTokenKey, fetchV2ApiCatalog, runSmokeTest } from './lib/v2api'
+import { installProfileBundle, isTauriRuntime } from './lib/desktop'
 import { maskSecret, normalizeBaseUrl } from './lib/url'
 import type {
   ApiKeySummary,
   ClientType,
+  DesktopInstallState,
   GroupOption,
   HubProfile,
   SmokeTestState,
@@ -57,6 +60,10 @@ export function App() {
   const [syncState, setSyncState] = useState<SyncState>({
     status: 'idle',
     message: 'Not synced',
+  })
+  const [installState, setInstallState] = useState<DesktopInstallState>({
+    status: 'idle',
+    message: 'Not installed',
   })
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([])
   const [models, setModels] = useState<string[]>([])
@@ -152,6 +159,24 @@ export function App() {
       setSyncState({
         status: 'error',
         message: error instanceof Error ? error.message : 'Sync failed',
+      })
+    }
+  }
+
+  const handleDesktopInstall = async () => {
+    setInstallState({ status: 'running', message: 'Writing local profile bundle' })
+    try {
+      const result = await installProfileBundle(activeProfile, artifacts)
+      setInstallState({
+        status: 'success',
+        message: 'Local bundle written',
+        path: result.path,
+        backupPath: result.backup_path,
+      })
+    } catch (error) {
+      setInstallState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Desktop install failed',
       })
     }
   }
@@ -381,6 +406,24 @@ export function App() {
               <button
                 className="secondary-action"
                 type="button"
+                onClick={handleDesktopInstall}
+                disabled={!isTauriRuntime()}
+                title={
+                  isTauriRuntime()
+                    ? 'Write a local profile bundle'
+                    : 'Available in the desktop app'
+                }
+              >
+                {installState.status === 'running' ? (
+                  <Loader2 size={16} className="spin" />
+                ) : (
+                  <FolderDown size={16} />
+                )}
+                Desktop install
+              </button>
+              <button
+                className="secondary-action"
+                type="button"
                 onClick={() =>
                   copyText(
                     'endpoint',
@@ -398,6 +441,16 @@ export function App() {
             <div className={`test-output ${syncState.status}`}>
               <Database size={16} />
               <span>{syncState.message}</span>
+            </div>
+            <div className={`test-output ${installState.status}`}>
+              <FolderDown size={16} />
+              <span>
+                {installState.status === 'success'
+                  ? `${installState.path}${
+                      installState.backupPath ? ` (backup: ${installState.backupPath})` : ''
+                    }`
+                  : installState.message}
+              </span>
             </div>
             <div className={`test-output ${smokeTest.status}`}>
               <MessageSquare size={16} />

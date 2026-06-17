@@ -22,6 +22,7 @@ v2api Code Hub
 - Sync available models and usable groups from v2api.
 - Generate setup snippets for Codex, Claude Code, Gemini CLI, and OpenAI-compatible clients.
 - Generate CC Switch deep-link import URLs.
+- In the Tauri desktop app, write a safe local profile bundle under `~/.v2api-code-hub/clients/`.
 - Test a selected API key and model with a short non-streaming chat request.
 
 ## Deferred Capabilities
@@ -29,7 +30,7 @@ v2api Code Hub
 - Direct v2api account login.
 - Dedicated API key creation from the app.
 - Balance and recent usage logs.
-- Local config file writer.
+- Direct writes to real Codex, Claude Code, and Gemini CLI config paths.
 - Desktop tray, deep-link registration, and auto-update.
 - WeChat/QQ bridge.
 
