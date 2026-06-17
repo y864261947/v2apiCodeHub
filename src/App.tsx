@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
 import {
+  AlertCircle,
+  ArrowRight,
   Bot,
   CheckCircle2,
   Clipboard,
   Code2,
   Copy,
   Database,
+  FileCode2,
   FolderDown,
   KeyRound,
   Laptop,
@@ -45,6 +48,13 @@ function updateProfile(profiles: HubProfile[], id: string, patch: Partial<HubPro
   )
 }
 
+function stateIcon(status: SyncState['status'] | SmokeTestState['status'] | DesktopInstallState['status']) {
+  if (status === 'running') return <Loader2 size={15} className="spin" />
+  if (status === 'success') return <CheckCircle2 size={15} />
+  if (status === 'error') return <AlertCircle size={15} />
+  return <RefreshCw size={15} />
+}
+
 export function App() {
   const initialProfiles = useMemo(() => loadProfiles(), [])
   const [profiles, setProfiles] = useState<HubProfile[]>(initialProfiles)
@@ -72,6 +82,9 @@ export function App() {
   const activeProfile = profiles.find((profile) => profile.id === activeId) ?? profiles[0]
   const client = getClientDefinition(activeProfile.client)
   const artifacts = client.artifacts(activeProfile)
+  const selectedApiKey = apiKeys.find((item) => item.id === activeProfile.apiKeyId)
+  const canRunSmokeTest = activeProfile.baseUrl.trim() !== '' && activeProfile.apiKey.trim() !== ''
+  const syncSummary = `${apiKeys.length} keys / ${models.length} models / ${groups.length} groups`
 
   const persistProfiles = (next: HubProfile[]) => {
     setProfiles(next)
@@ -215,14 +228,16 @@ export function App() {
           </div>
           <div>
             <strong>v2api Code Hub</strong>
-            <span>Desktop MVP</span>
+            <span>Profiles and client bundles</span>
           </div>
         </div>
 
-        <button className="primary-action" type="button" onClick={addProfile}>
-          <Plus size={16} />
-          New profile
-        </button>
+        <div className="sidebar-heading">
+          <span>Profiles</span>
+          <button className="icon-button subtle" type="button" onClick={addProfile} title="New profile">
+            <Plus size={16} />
+          </button>
+        </div>
 
         <div className="profile-list">
           {profiles.map((profile) => (
@@ -232,14 +247,20 @@ export function App() {
               type="button"
               onClick={() => setActiveProfileId(profile.id)}
             >
-              <Laptop size={17} />
-              <span>{profile.name}</span>
-              <small>{maskSecret(profile.apiKey) || profile.client}</small>
+              <span className="profile-icon">
+                <Laptop size={16} />
+              </span>
+              <span className="profile-copy">
+                <strong>{profile.name}</strong>
+                <small>{getClientDefinition(profile.client).name}</small>
+              </span>
+              <span className={profile.apiKey.trim() ? 'profile-dot ready' : 'profile-dot'} />
             </button>
           ))}
         </div>
 
         <div className="side-panel">
+          <span className="side-panel-title">Active route</span>
           <div className="side-panel-row">
             <Server size={16} />
             <span>{normalizeBaseUrl(activeProfile.baseUrl)}</span>
@@ -253,217 +274,305 @@ export function App() {
 
       <section className="workspace">
         <header className="topbar">
-          <div>
+          <div className="title-stack">
             <p className="eyebrow">Client profile</p>
             <h1>{activeProfile.name}</h1>
+            <p>{client.name} uses {client.endpoint(activeProfile)}</p>
           </div>
-          <div className={`status-pill ${smokeTest.status}`}>
-            {smokeTest.status === 'running' ? <Loader2 size={15} className="spin" /> : null}
-            {smokeTest.status === 'success' ? <CheckCircle2 size={15} /> : null}
-            {smokeTest.status === 'idle' ? <RefreshCw size={15} /> : null}
-            {smokeTest.status === 'error' ? <Bot size={15} /> : null}
-            <span>
-              {smokeTest.status === 'success'
-                ? `${smokeTest.latencyMs} ms`
-                : smokeTest.message}
-            </span>
+          <div className="topbar-actions">
+            <div className={`status-pill ${syncState.status}`}>
+              {stateIcon(syncState.status)}
+              <span>{syncState.status === 'idle' ? syncSummary : syncState.message}</span>
+            </div>
+            <div className={`status-pill ${smokeTest.status}`}>
+              {stateIcon(smokeTest.status)}
+              <span>
+                {smokeTest.status === 'success'
+                  ? `${smokeTest.latencyMs} ms`
+                  : smokeTest.message}
+              </span>
+            </div>
           </div>
         </header>
 
         <div className="content-grid">
-          <section className="panel setup-panel">
-            <div className="panel-header">
-              <div>
-                <h2>v2api connection</h2>
-                <p>Account-owned API key, model, and routing group.</p>
+          <section className="flow-column">
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="step-label">Step 1</p>
+                  <h2>Connect v2api</h2>
+                  <p>Use an account token to pull keys, models, and groups from your gateway.</p>
+                </div>
+                <button
+                  className="icon-button danger"
+                  type="button"
+                  onClick={deleteProfile}
+                  disabled={profiles.length === 1}
+                  title="Delete profile"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
-              <button
-                className="icon-button danger"
-                type="button"
-                onClick={deleteProfile}
-                disabled={profiles.length === 1}
-                title="Delete profile"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
 
-            <div className="form-grid">
-              <label>
-                <span>Name</span>
-                <input
-                  value={activeProfile.name}
-                  onChange={(event) => patchActiveProfile({ name: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Client</span>
-                <select
-                  value={activeProfile.client}
-                  onChange={(event) =>
-                    patchActiveProfile({ client: event.target.value as ClientType })
+              <div className="form-grid">
+                <label>
+                  <span>Name</span>
+                  <input
+                    value={activeProfile.name}
+                    onChange={(event) => patchActiveProfile({ name: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Client</span>
+                  <select
+                    value={activeProfile.client}
+                    onChange={(event) =>
+                      patchActiveProfile({ client: event.target.value as ClientType })
+                    }
+                  >
+                    {CLIENTS.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wide">
+                  <span>v2api URL</span>
+                  <input
+                    value={activeProfile.baseUrl}
+                    onChange={(event) => patchActiveProfile({ baseUrl: event.target.value })}
+                    placeholder="https://v2api.top"
+                  />
+                </label>
+                <label className="wide">
+                  <span>Account token</span>
+                  <input
+                    value={activeProfile.accountToken}
+                    onChange={(event) => patchActiveProfile({ accountToken: event.target.value })}
+                    placeholder="Paste the token from your v2api account"
+                    type="password"
+                  />
+                </label>
+              </div>
+
+              <div className="action-row">
+                <button className="primary-action" type="button" onClick={handleSyncCatalog}>
+                  {syncState.status === 'running' ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <Database size={16} />
+                  )}
+                  Sync account
+                </button>
+                <div className={`inline-status ${syncState.status}`}>
+                  {stateIcon(syncState.status)}
+                  <span>{syncState.message}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="step-label">Step 2</p>
+                  <h2>Choose routing</h2>
+                  <p>Select the key, model, and group that this local client should use.</p>
+                </div>
+              </div>
+
+              <div className="metric-row">
+                <div>
+                  <strong>{apiKeys.length}</strong>
+                  <span>API keys</span>
+                </div>
+                <div>
+                  <strong>{models.length}</strong>
+                  <span>Models</span>
+                </div>
+                <div>
+                  <strong>{groups.length}</strong>
+                  <span>Groups</span>
+                </div>
+              </div>
+
+              <div className="form-grid">
+                <label className="wide">
+                  <span>API key from v2api</span>
+                  <select
+                    value={activeProfile.apiKeyId ?? ''}
+                    onChange={(event) => void handleApiKeySelect(event.target.value)}
+                    disabled={apiKeys.length === 0}
+                  >
+                    <option value="">
+                      {apiKeys.length === 0 ? 'Sync v2api first' : 'Select API key'}
+                    </option>
+                    {apiKeys.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} - {item.group || 'default'} - {item.key}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wide">
+                  <span>API key</span>
+                  <input
+                    value={activeProfile.apiKey}
+                    onChange={(event) => patchActiveProfile({ apiKey: event.target.value })}
+                    placeholder="sk-..."
+                    type="password"
+                  />
+                </label>
+                <label>
+                  <span>Model</span>
+                  <input
+                    value={activeProfile.model}
+                    onChange={(event) => patchActiveProfile({ model: event.target.value })}
+                    placeholder="gpt-5-codex"
+                    list="v2api-models"
+                  />
+                  <datalist id="v2api-models">
+                    {models.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
+                </label>
+                <label>
+                  <span>Group</span>
+                  <input
+                    value={activeProfile.group}
+                    onChange={(event) => patchActiveProfile({ group: event.target.value })}
+                    placeholder="auto"
+                    list="v2api-groups"
+                  />
+                  <datalist id="v2api-groups">
+                    {groups.map((group) => (
+                      <option key={group.value} value={group.value}>
+                        {group.desc || group.label}
+                      </option>
+                    ))}
+                  </datalist>
+                </label>
+              </div>
+
+              <div className="route-summary">
+                <KeyRound size={16} />
+                <span>
+                  {selectedApiKey
+                    ? `${selectedApiKey.name} routes to ${activeProfile.group || 'default'}`
+                    : activeProfile.apiKey
+                      ? `Manual key ${maskSecret(activeProfile.apiKey)}`
+                      : 'No key selected yet'}
+                </span>
+              </div>
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <p className="step-label">Step 3</p>
+                  <h2>Install and verify</h2>
+                  <p>Write a local bundle in the desktop app, then confirm the model answers.</p>
+                </div>
+              </div>
+
+              <div className="command-grid">
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={handleDesktopInstall}
+                  disabled={!isTauriRuntime()}
+                  title={
+                    isTauriRuntime()
+                      ? 'Write a local profile bundle'
+                      : 'Available in the desktop app'
                   }
                 >
-                  {CLIENTS.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="wide">
-                <span>v2api URL</span>
-                <input
-                  value={activeProfile.baseUrl}
-                  onChange={(event) => patchActiveProfile({ baseUrl: event.target.value })}
-                  placeholder="https://v2api.top"
-                />
-              </label>
-              <label className="wide">
-                <span>Account token</span>
-                <input
-                  value={activeProfile.accountToken}
-                  onChange={(event) => patchActiveProfile({ accountToken: event.target.value })}
-                  placeholder="Generate from v2api profile, then paste here"
-                  type="password"
-                />
-              </label>
-              <label className="wide">
-                <span>API key from v2api</span>
-                <select
-                  value={activeProfile.apiKeyId ?? ''}
-                  onChange={(event) => void handleApiKeySelect(event.target.value)}
-                  disabled={apiKeys.length === 0}
+                  {installState.status === 'running' ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <FolderDown size={16} />
+                  )}
+                  Desktop install
+                </button>
+                <button
+                  className="primary-action"
+                  type="button"
+                  onClick={handleSmokeTest}
+                  disabled={!canRunSmokeTest}
                 >
-                  <option value="">
-                    {apiKeys.length === 0 ? 'Sync v2api first' : 'Select API key'}
-                  </option>
-                  {apiKeys.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} - {item.group || 'default'} - {item.key}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="wide">
-                <span>API key</span>
-                <input
-                  value={activeProfile.apiKey}
-                  onChange={(event) => patchActiveProfile({ apiKey: event.target.value })}
-                  placeholder="sk-..."
-                  type="password"
-                />
-              </label>
-              <label>
-                <span>Model</span>
-                <input
-                  value={activeProfile.model}
-                  onChange={(event) => patchActiveProfile({ model: event.target.value })}
-                  placeholder="gpt-5-codex"
-                  list="v2api-models"
-                />
-                <datalist id="v2api-models">
-                  {models.map((model) => (
-                    <option key={model} value={model} />
-                  ))}
-                </datalist>
-              </label>
-              <label>
-                <span>Group</span>
-                <input
-                  value={activeProfile.group}
-                  onChange={(event) => patchActiveProfile({ group: event.target.value })}
-                  placeholder="auto"
-                  list="v2api-groups"
-                />
-                <datalist id="v2api-groups">
-                  {groups.map((group) => (
-                    <option key={group.value} value={group.value}>
-                      {group.desc || group.label}
-                    </option>
-                  ))}
-                </datalist>
-              </label>
-            </div>
+                  {smokeTest.status === 'running' ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <TerminalSquare size={16} />
+                  )}
+                  Test connection
+                </button>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={() =>
+                    copyText(
+                      'endpoint',
+                      `${client.name}\nEndpoint: ${client.endpoint(activeProfile)}\nModel: ${
+                        activeProfile.model
+                      }`
+                    )
+                  }
+                >
+                  <Clipboard size={16} />
+                  {copiedKey === 'endpoint' ? 'Copied' : 'Copy endpoint'}
+                </button>
+              </div>
 
-            <div className="action-row">
-              <button className="secondary-action" type="button" onClick={handleSyncCatalog}>
-                {syncState.status === 'running' ? (
-                  <Loader2 size={16} className="spin" />
-                ) : (
-                  <Database size={16} />
-                )}
-                Sync v2api
-              </button>
-              <button className="primary-action" type="button" onClick={handleSmokeTest}>
-                {smokeTest.status === 'running' ? (
-                  <Loader2 size={16} className="spin" />
-                ) : (
-                  <TerminalSquare size={16} />
-                )}
-                Test connection
-              </button>
-              <button
-                className="secondary-action"
-                type="button"
-                onClick={handleDesktopInstall}
-                disabled={!isTauriRuntime()}
-                title={
-                  isTauriRuntime()
-                    ? 'Write a local profile bundle'
-                    : 'Available in the desktop app'
-                }
-              >
-                {installState.status === 'running' ? (
-                  <Loader2 size={16} className="spin" />
-                ) : (
-                  <FolderDown size={16} />
-                )}
-                Desktop install
-              </button>
-              <button
-                className="secondary-action"
-                type="button"
-                onClick={() =>
-                  copyText(
-                    'endpoint',
-                    `${client.name}\nEndpoint: ${client.endpoint(activeProfile)}\nModel: ${
-                      activeProfile.model
-                    }`
-                  )
-                }
-              >
-                <Clipboard size={16} />
-                {copiedKey === 'endpoint' ? 'Copied' : 'Copy endpoint'}
-              </button>
-            </div>
-
-            <div className={`test-output ${syncState.status}`}>
-              <Database size={16} />
-              <span>{syncState.message}</span>
-            </div>
-            <div className={`test-output ${installState.status}`}>
-              <FolderDown size={16} />
-              <span>
-                {installState.status === 'success'
-                  ? `${installState.path}${
-                      installState.backupPath ? ` (backup: ${installState.backupPath})` : ''
-                    }`
-                  : installState.message}
-              </span>
-            </div>
-            <div className={`test-output ${smokeTest.status}`}>
-              <MessageSquare size={16} />
-              <span>{smokeTest.message}</span>
-            </div>
+              <div className={`test-output ${installState.status}`}>
+                <FolderDown size={16} />
+                <span>
+                  {installState.status === 'success'
+                    ? `${installState.path}${
+                        installState.backupPath ? ` (backup: ${installState.backupPath})` : ''
+                      }`
+                    : installState.message}
+                </span>
+              </div>
+              <div className={`test-output ${smokeTest.status}`}>
+                <MessageSquare size={16} />
+                <span>{smokeTest.message}</span>
+              </div>
+            </section>
           </section>
 
           <section className="panel artifact-panel">
             <div className="panel-header">
               <div>
+                <p className="step-label">Generated output</p>
                 <h2>{client.name}</h2>
                 <p>{client.endpoint(activeProfile)}</p>
               </div>
+            </div>
+
+            <div className="client-tabs" role="tablist" aria-label="Client type">
+              {CLIENTS.map((item) => (
+                <button
+                  key={item.id}
+                  className={item.id === activeProfile.client ? 'active' : ''}
+                  type="button"
+                  onClick={() => patchActiveProfile({ client: item.id })}
+                >
+                  <Bot size={15} />
+                  {item.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="artifact-overview">
+              <div>
+                <FileCode2 size={17} />
+                <span>{artifacts.length} files</span>
+              </div>
+              <ArrowRight size={16} />
+              <strong>{activeProfile.model || 'No model selected'}</strong>
             </div>
 
             <div className="artifact-list">
