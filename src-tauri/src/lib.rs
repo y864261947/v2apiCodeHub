@@ -130,8 +130,8 @@ fn query_value(query: &str, key: &str) -> Option<String> {
 fn open_browser(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd")
-            .args(["/C", "start", "", url])
+        Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", url])
             .spawn()
             .map_err(|err| err.to_string())?;
     }
