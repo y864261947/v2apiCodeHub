@@ -10,6 +10,7 @@ export function createDefaultProfile(): HubProfile {
     name: 'v2api Codex',
     baseUrl: 'https://v2api.top',
     accountToken: '',
+    accountUserId: undefined,
     apiKey: '',
     apiKeyId: undefined,
     model: 'gpt-5-codex',

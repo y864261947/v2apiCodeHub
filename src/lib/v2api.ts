@@ -54,6 +54,14 @@ type ApiResponse<T> = {
   data?: T
 }
 
+type DesktopTokenResponse = {
+  user_id?: number
+  userId?: number
+  access_token?: string
+  accessToken?: string
+  token?: string
+}
+
 type PageResponse<T> = {
   items?: T[]
   total?: number
@@ -74,6 +82,7 @@ async function requestV2Api<T>(profile: HubProfile, path: string, init?: Request
     ...init,
     headers: {
       Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+      ...(profile.accountUserId ? { 'New-Api-User': String(profile.accountUserId) } : {}),
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
@@ -87,6 +96,43 @@ async function requestV2Api<T>(profile: HubProfile, path: string, init?: Request
     throw new Error(payload.message || 'v2api request failed')
   }
   return payload?.data as T
+}
+
+export async function exchangeDesktopAuthCode(
+  profile: HubProfile,
+  code: string,
+  state: string
+): Promise<{ accountToken: string; accountUserId: number }> {
+  const response = await fetch(apiUrl(profile, '/api/desktop/oauth/token'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      client: 'v2api-code-hub',
+      code,
+      state,
+    }),
+  })
+  const payload = (await response.json().catch(() => null)) as ApiResponse<DesktopTokenResponse> | null
+
+  if (!response.ok) {
+    throw new Error(payload?.message || `HTTP ${response.status}`)
+  }
+  if (payload && payload.success === false) {
+    throw new Error(payload.message || 'Desktop authorization failed')
+  }
+
+  const data = payload?.data
+
+  const accountToken = data?.access_token ?? data?.accessToken ?? data?.token ?? ''
+  const accountUserId = data?.user_id ?? data?.userId
+
+  if (!accountToken || !accountUserId) {
+    throw new Error('Authorization response did not include user id and access token')
+  }
+
+  return { accountToken, accountUserId }
 }
 
 export async function fetchApiKeys(profile: HubProfile): Promise<ApiKeySummary[]> {

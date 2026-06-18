@@ -6,6 +6,16 @@ type InstallPayload = {
   artifacts: ClientArtifact[]
 }
 
+type DesktopAuthPayload = {
+  baseUrl: string
+  state: string
+}
+
+export type DesktopAuthCallback = {
+  code: string
+  state: string
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
@@ -22,6 +32,7 @@ export async function installProfileBundle(
     profile: {
       ...profile,
       accountToken: '',
+      accountUserId: undefined,
     },
     artifacts,
   }
@@ -29,3 +40,14 @@ export async function installProfileBundle(
   return invoke<DesktopInstallResult>('install_profile_bundle', { payload })
 }
 
+export async function beginDesktopAuthorization(
+  baseUrl: string,
+  state: string
+): Promise<DesktopAuthCallback> {
+  if (!isTauriRuntime()) {
+    throw new Error('Browser authorization callback is only available in the desktop app')
+  }
+
+  const payload: DesktopAuthPayload = { baseUrl, state }
+  return invoke<DesktopAuthCallback>('begin_desktop_auth', { payload })
+}

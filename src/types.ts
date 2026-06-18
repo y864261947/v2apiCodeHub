@@ -5,6 +5,7 @@ export type HubProfile = {
   name: string
   baseUrl: string
   accountToken: string
+  accountUserId?: number
   apiKey: string
   apiKeyId?: number
   model: string

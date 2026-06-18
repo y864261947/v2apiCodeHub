@@ -16,7 +16,8 @@ v2api Code Hub
 ## MVP Capabilities
 
 - Configure one or more v2api profiles.
-- Store a v2api account token for management API calls.
+- Start a browser-based v2api desktop authorization flow.
+- Store the returned v2api user id and system access token for management API calls.
 - Sync existing API keys from v2api.
 - Fetch the selected real API key from v2api.
 - Sync available models and usable groups from v2api.
@@ -27,7 +28,6 @@ v2api Code Hub
 
 ## Deferred Capabilities
 
-- Direct v2api account login.
 - Dedicated API key creation from the app.
 - Balance and recent usage logs.
 - Direct writes to real Codex, Claude Code, and Gemini CLI config paths.
@@ -42,8 +42,11 @@ Currently used:
 - reveal key after user confirmation
 - list available models
 - list usable groups
+- generate a system access token from an authenticated dashboard session (`GET /api/user/token`)
 
 Still useful for the next iteration:
 
+- desktop authorization page: `GET /desktop/authorize?client=v2api-code-hub&callback=http://127.0.0.1:<port>/auth/callback&state=<state>`
+- desktop authorization token exchange: `POST /api/desktop/oauth/token` with `{ client, code, state }`, returning `{ user_id, access_token }`
 - create dedicated coding API key
 - return balance and recent usage logs

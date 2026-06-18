@@ -8,6 +8,7 @@ import {
   Code2,
   Copy,
   Database,
+  ExternalLink,
   FileCode2,
   FolderDown,
   KeyRound,
@@ -28,8 +29,13 @@ import {
   saveActiveProfileId,
   saveProfiles,
 } from './lib/profiles'
-import { fetchTokenKey, fetchV2ApiCatalog, runSmokeTest } from './lib/v2api'
-import { installProfileBundle, isTauriRuntime } from './lib/desktop'
+import {
+  exchangeDesktopAuthCode,
+  fetchTokenKey,
+  fetchV2ApiCatalog,
+  runSmokeTest,
+} from './lib/v2api'
+import { beginDesktopAuthorization, installProfileBundle, isTauriRuntime } from './lib/desktop'
 import { maskSecret, normalizeBaseUrl } from './lib/url'
 import type {
   ApiKeySummary,
@@ -82,9 +88,36 @@ export function App() {
   const activeProfile = profiles.find((profile) => profile.id === activeId) ?? profiles[0]
   const client = getClientDefinition(activeProfile.client)
   const artifacts = client.artifacts(activeProfile)
+  const endpoint = client.endpoint(activeProfile)
   const selectedApiKey = apiKeys.find((item) => item.id === activeProfile.apiKeyId)
   const canRunSmokeTest = activeProfile.baseUrl.trim() !== '' && activeProfile.apiKey.trim() !== ''
   const syncSummary = `${apiKeys.length} keys / ${models.length} models / ${groups.length} groups`
+  const hasGateway = activeProfile.baseUrl.trim() !== ''
+  const hasAccountAuthorization =
+    activeProfile.accountToken.trim() !== '' && Boolean(activeProfile.accountUserId)
+  const hasApiKey = activeProfile.apiKey.trim() !== ''
+  const hasModel = activeProfile.model.trim() !== ''
+  const routingReady = hasApiKey && hasModel
+  const setupSteps = [
+    { label: 'Gateway', complete: hasGateway },
+    { label: 'v2api authorization', complete: hasAccountAuthorization },
+    { label: 'API key', complete: hasApiKey },
+    { label: 'Model', complete: hasModel },
+  ]
+  const completedSteps = setupSteps.filter((step) => step.complete).length
+  const nextAction = !hasGateway
+    ? 'Add your v2api URL'
+    : !hasAccountAuthorization
+      ? 'Authorize v2api account'
+      : apiKeys.length === 0 && syncState.status !== 'success'
+        ? 'Sync the account catalog'
+        : !hasApiKey
+          ? 'Select or paste an API key'
+          : !hasModel
+            ? 'Choose a model'
+            : smokeTest.status !== 'success'
+              ? 'Test the connection'
+              : 'Profile is ready'
 
   const persistProfiles = (next: HubProfile[]) => {
     setProfiles(next)
@@ -139,27 +172,27 @@ export function App() {
     }
   }
 
-  const handleSyncCatalog = async () => {
+  const syncCatalogForProfile = async (profile: HubProfile) => {
     setSyncState({ status: 'running', message: 'Syncing v2api account' })
     try {
-      const catalog = await fetchV2ApiCatalog(activeProfile)
+      const catalog = await fetchV2ApiCatalog(profile)
       setApiKeys(catalog.apiKeys)
       setModels(catalog.models)
       setGroups(catalog.groups)
 
       const selectedKey =
-        catalog.apiKeys.find((item) => item.id === activeProfile.apiKeyId) ??
+        catalog.apiKeys.find((item) => item.id === profile.apiKeyId) ??
         catalog.apiKeys.find((item) => item.status === 1) ??
         catalog.apiKeys[0]
       const patch: Partial<HubProfile> = {}
-      if (selectedKey && activeProfile.apiKeyId !== selectedKey.id) {
+      if (selectedKey && profile.apiKeyId !== selectedKey.id) {
         patch.apiKeyId = selectedKey.id
-        patch.group = selectedKey.group || activeProfile.group
+        patch.group = selectedKey.group || profile.group
       }
-      if (catalog.models.length > 0 && !catalog.models.includes(activeProfile.model)) {
+      if (catalog.models.length > 0 && !catalog.models.includes(profile.model)) {
         patch.model = catalog.models[0]
       }
-      if (catalog.groups.length > 0 && !catalog.groups.some((item) => item.value === activeProfile.group)) {
+      if (catalog.groups.length > 0 && !catalog.groups.some((item) => item.value === profile.group)) {
         patch.group = catalog.groups[0].value
       }
       if (Object.keys(patch).length > 0) patchActiveProfile(patch)
@@ -172,6 +205,37 @@ export function App() {
       setSyncState({
         status: 'error',
         message: error instanceof Error ? error.message : 'Sync failed',
+      })
+    }
+  }
+
+  const handleSyncCatalog = async () => {
+    await syncCatalogForProfile(activeProfile)
+  }
+
+  const handleAuthorizeAccount = async () => {
+    const state = crypto.randomUUID()
+    setSyncState({ status: 'running', message: 'Waiting for browser authorization' })
+    try {
+      const callback = await beginDesktopAuthorization(activeProfile.baseUrl, state)
+      if (callback.state !== state) throw new Error('Authorization state mismatch')
+
+      setSyncState({ status: 'running', message: 'Completing v2api authorization' })
+      const auth = await exchangeDesktopAuthCode(activeProfile, callback.code, state)
+      const authorizedProfile = {
+        ...activeProfile,
+        accountToken: auth.accountToken,
+        accountUserId: auth.accountUserId,
+      }
+      patchActiveProfile({
+        accountToken: auth.accountToken,
+        accountUserId: auth.accountUserId,
+      })
+      await syncCatalogForProfile(authorizedProfile)
+    } catch (error) {
+      setSyncState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Authorization failed',
       })
     }
   }
@@ -236,6 +300,7 @@ export function App() {
           <span>Profiles</span>
           <button className="icon-button subtle" type="button" onClick={addProfile} title="New profile">
             <Plus size={16} />
+            <span className="sr-only">New profile</span>
           </button>
         </div>
 
@@ -246,6 +311,7 @@ export function App() {
               key={profile.id}
               type="button"
               onClick={() => setActiveProfileId(profile.id)}
+              aria-current={profile.id === activeProfile.id ? 'true' : undefined}
             >
               <span className="profile-icon">
                 <Laptop size={16} />
@@ -257,6 +323,22 @@ export function App() {
               <span className={profile.apiKey.trim() ? 'profile-dot ready' : 'profile-dot'} />
             </button>
           ))}
+        </div>
+
+        <div className="side-panel">
+          <span className="side-panel-title">Setup readiness</span>
+          <div className="readiness-score">
+            <strong>{completedSteps}/{setupSteps.length}</strong>
+            <span>{nextAction}</span>
+          </div>
+          <div className="readiness-list">
+            {setupSteps.map((step) => (
+              <span className={step.complete ? 'complete' : ''} key={step.label}>
+                <CheckCircle2 size={13} />
+                {step.label}
+              </span>
+            ))}
+          </div>
         </div>
 
         <div className="side-panel">
@@ -277,14 +359,14 @@ export function App() {
           <div className="title-stack">
             <p className="eyebrow">Client profile</p>
             <h1>{activeProfile.name}</h1>
-            <p>{client.name} uses {client.endpoint(activeProfile)}</p>
+            <p>{client.name} uses {endpoint}</p>
           </div>
           <div className="topbar-actions">
-            <div className={`status-pill ${syncState.status}`}>
+            <div className={`status-pill ${syncState.status}`} aria-live="polite">
               {stateIcon(syncState.status)}
               <span>{syncState.status === 'idle' ? syncSummary : syncState.message}</span>
             </div>
-            <div className={`status-pill ${smokeTest.status}`}>
+            <div className={`status-pill ${smokeTest.status}`} aria-live="polite">
               {stateIcon(smokeTest.status)}
               <span>
                 {smokeTest.status === 'success'
@@ -295,14 +377,39 @@ export function App() {
           </div>
         </header>
 
+        <section className="overview-grid" aria-label="Profile summary">
+          <div className="overview-card">
+            <span>Gateway</span>
+            <strong>{hasGateway ? normalizeBaseUrl(activeProfile.baseUrl) : 'Not set'}</strong>
+          </div>
+          <div className="overview-card">
+            <span>Credential</span>
+            <strong>
+              {selectedApiKey
+                ? selectedApiKey.name
+                : hasApiKey
+                  ? maskSecret(activeProfile.apiKey)
+                  : 'No API key'}
+            </strong>
+          </div>
+          <div className="overview-card">
+            <span>Model</span>
+            <strong>{activeProfile.model || 'Not selected'}</strong>
+          </div>
+          <div className={`overview-card ${routingReady ? 'ready' : ''}`}>
+            <span>Next action</span>
+            <strong>{nextAction}</strong>
+          </div>
+        </section>
+
         <div className="content-grid">
           <section className="flow-column">
             <section className="panel">
               <div className="panel-header">
                 <div>
                   <p className="step-label">Step 1</p>
-                  <h2>Connect v2api</h2>
-                  <p>Use an account token to pull keys, models, and groups from your gateway.</p>
+                  <h2>Authorize v2api</h2>
+                  <p>Open v2api in the browser, sign in, and approve this desktop app.</p>
                 </div>
                 <button
                   className="icon-button danger"
@@ -310,6 +417,7 @@ export function App() {
                   onClick={deleteProfile}
                   disabled={profiles.length === 1}
                   title="Delete profile"
+                  aria-label="Delete profile"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -346,19 +454,67 @@ export function App() {
                     placeholder="https://v2api.top"
                   />
                 </label>
-                <label className="wide">
-                  <span>Account token</span>
-                  <input
-                    value={activeProfile.accountToken}
-                    onChange={(event) => patchActiveProfile({ accountToken: event.target.value })}
-                    placeholder="Paste the token from your v2api account"
-                    type="password"
-                  />
-                </label>
               </div>
 
+              <div className={`authorization-card ${hasAccountAuthorization ? 'ready' : ''}`}>
+                <div>
+                  <strong>{hasAccountAuthorization ? 'v2api account authorized' : 'Browser authorization'}</strong>
+                  <span>
+                    {hasAccountAuthorization
+                      ? `User ${activeProfile.accountUserId} can sync keys, models, and groups.`
+                      : 'The browser handles registration and login. Hub receives only an authorization code.'}
+                  </span>
+                </div>
+                <button
+                  className="primary-action"
+                  type="button"
+                  onClick={() => void handleAuthorizeAccount()}
+                  disabled={!isTauriRuntime() || syncState.status === 'running'}
+                  title={isTauriRuntime() ? 'Open v2api authorization' : 'Available in the desktop app'}
+                >
+                  {syncState.status === 'running' ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : (
+                    <ExternalLink size={16} />
+                  )}
+                  {hasAccountAuthorization ? 'Re-authorize' : 'Authorize in browser'}
+                </button>
+              </div>
+
+              <details className="advanced-auth">
+                <summary>Advanced manual token</summary>
+                <div className="form-grid">
+                  <label>
+                    <span>User ID</span>
+                    <input
+                      value={activeProfile.accountUserId ?? ''}
+                      onChange={(event) =>
+                        patchActiveProfile({
+                          accountUserId: event.target.value ? Number(event.target.value) : undefined,
+                        })
+                      }
+                      placeholder="123"
+                    />
+                  </label>
+                  <label>
+                    <span>Access token</span>
+                    <input
+                      value={activeProfile.accountToken}
+                      onChange={(event) => patchActiveProfile({ accountToken: event.target.value })}
+                      placeholder="System access token"
+                      type="password"
+                    />
+                  </label>
+                </div>
+              </details>
+
               <div className="action-row">
-                <button className="primary-action" type="button" onClick={handleSyncCatalog}>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={handleSyncCatalog}
+                  disabled={!hasAccountAuthorization || syncState.status === 'running'}
+                >
                   {syncState.status === 'running' ? (
                     <Loader2 size={16} className="spin" />
                   ) : (
@@ -366,7 +522,7 @@ export function App() {
                   )}
                   Sync account
                 </button>
-                <div className={`inline-status ${syncState.status}`}>
+                <div className={`inline-status ${syncState.status}`} aria-live="polite">
                   {stateIcon(syncState.status)}
                   <span>{syncState.message}</span>
                 </div>
@@ -515,7 +671,7 @@ export function App() {
                   onClick={() =>
                     copyText(
                       'endpoint',
-                      `${client.name}\nEndpoint: ${client.endpoint(activeProfile)}\nModel: ${
+                      `${client.name}\nEndpoint: ${endpoint}\nModel: ${
                         activeProfile.model
                       }`
                     )
@@ -526,7 +682,7 @@ export function App() {
                 </button>
               </div>
 
-              <div className={`test-output ${installState.status}`}>
+              <div className={`test-output ${installState.status}`} aria-live="polite">
                 <FolderDown size={16} />
                 <span>
                   {installState.status === 'success'
@@ -536,7 +692,7 @@ export function App() {
                     : installState.message}
                 </span>
               </div>
-              <div className={`test-output ${smokeTest.status}`}>
+              <div className={`test-output ${smokeTest.status}`} aria-live="polite">
                 <MessageSquare size={16} />
                 <span>{smokeTest.message}</span>
               </div>
@@ -548,7 +704,7 @@ export function App() {
               <div>
                 <p className="step-label">Generated output</p>
                 <h2>{client.name}</h2>
-                <p>{client.endpoint(activeProfile)}</p>
+                <p>{endpoint}</p>
               </div>
             </div>
 
@@ -572,7 +728,7 @@ export function App() {
                 <span>{artifacts.length} files</span>
               </div>
               <ArrowRight size={16} />
-              <strong>{activeProfile.model || 'No model selected'}</strong>
+              <strong>{routingReady ? activeProfile.model : nextAction}</strong>
             </div>
 
             <div className="artifact-list">
@@ -588,6 +744,7 @@ export function App() {
                       type="button"
                       onClick={() => copyText(artifact.title, artifact.value)}
                       title="Copy"
+                      aria-label={`Copy ${artifact.title}`}
                     >
                       {copiedKey === artifact.title ? <CheckCircle2 size={16} /> : <Copy size={16} />}
                     </button>

@@ -42,6 +42,15 @@ body {
   background: var(--bg);
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 button,
 input,
 select {
@@ -153,6 +162,15 @@ button:disabled {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.profile-item:focus-visible,
+.icon-button:focus-visible,
+.primary-action:focus-visible,
+.secondary-action:focus-visible,
+.client-tabs button:focus-visible {
+  outline: 3px solid rgba(94, 234, 212, 0.45);
+  outline-offset: 2px;
+}
+
 .profile-item.active {
   border-color: rgba(94, 234, 212, 0.42);
   background: #ffffff;
@@ -229,6 +247,52 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.readiness-score {
+  display: grid;
+  gap: 2px;
+}
+
+.readiness-score strong {
+  color: #f8fafc;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.readiness-score span {
+  color: #aeb8c4;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.readiness-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.readiness-list span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: #8fa0b2;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.readiness-list span svg {
+  flex: 0 0 auto;
+  color: #607083;
+}
+
+.readiness-list span.complete {
+  color: #d7fff6;
+}
+
+.readiness-list span.complete svg {
+  color: #5eead4;
+}
+
 .side-panel-row {
   display: flex;
   min-width: 0;
@@ -260,7 +324,7 @@ button:disabled {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .title-stack {
@@ -307,6 +371,50 @@ h2 {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.overview-card {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 10px 24px rgba(31, 41, 51, 0.05);
+}
+
+.overview-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.overview-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-card.ready {
+  border-color: #b9dfcf;
+  background: #f3fbf7;
+}
+
+.overview-card.ready strong {
+  color: var(--success);
 }
 
 .status-pill,
@@ -389,6 +497,59 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 13px;
+}
+
+.authorization-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-alt);
+  margin-top: 15px;
+  padding: 13px;
+}
+
+.authorization-card.ready {
+  border-color: #b9dfcf;
+  background: #f3fbf7;
+}
+
+.authorization-card div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.authorization-card strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.authorization-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.advanced-auth {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.advanced-auth summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.advanced-auth[open] summary {
+  margin-bottom: 12px;
 }
 
 label {
@@ -708,6 +869,10 @@ pre {
 }
 
 @media (max-width: 1120px) {
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .content-grid {
     grid-template-columns: 1fr;
   }
@@ -743,6 +908,10 @@ pre {
     flex: none;
     justify-content: flex-start;
   }
+
+  .overview-grid {
+    margin-bottom: 14px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -761,14 +930,22 @@ pre {
 
   .form-grid,
   .metric-row,
-  .client-tabs {
+  .client-tabs,
+  .overview-grid,
+  .readiness-list {
     grid-template-columns: 1fr;
   }
 
   .command-grid .primary-action,
   .command-grid .secondary-action,
-  .action-row .primary-action {
+  .action-row .primary-action,
+  .authorization-card .primary-action {
     width: 100%;
+  }
+
+  .authorization-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .status-pill,
